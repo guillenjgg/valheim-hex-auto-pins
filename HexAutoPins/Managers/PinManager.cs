@@ -1,5 +1,4 @@
-﻿using HarmonyLib;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
@@ -13,6 +12,14 @@ namespace HexAutoPins.Managers
         private static readonly FieldInfo MinimapPinsField = typeof(Minimap).GetField(
             "m_pins",
             BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public
+        );
+
+        private static readonly MethodInfo RemovePinMethod = typeof(Minimap).GetMethod(
+            "RemovePin",
+            BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public,
+            null,
+            new[] { typeof(Minimap.PinData) },
+            null
         );
 
         private static readonly Dictionary<ZDOID, Minimap.PinData> PortalPins =
@@ -54,7 +61,6 @@ namespace HexAutoPins.Managers
             {
                 UpdatePortalPin(existingPin, portalPosition, pinName);
 
-                Plugin.Log?.LogInfo($"Updated portal pin. ID: {portalId}, Name: {pinName}");
                 return;
             }
 
@@ -65,11 +71,10 @@ namespace HexAutoPins.Managers
                 PortalPins[portalId] = savedPin;
                 UpdatePortalPin(savedPin, portalPosition, pinName);
 
-                Plugin.Log?.LogInfo($"Reconnected portal pin. ID: {portalId}, Name: {pinName}");
                 return;
             }
 
-            // 0L matches vanilla local/unowned pins. Shared map logic assings owner IDs when needed
+            // 0L matches vanilla local/unowned pins. Shared map logic assigns owner IDs when needed
             var ownerId = 0L;
 
             Minimap.PinData newPin = Minimap.instance.AddPin(
@@ -83,6 +88,53 @@ namespace HexAutoPins.Managers
 
             PortalPins.Add(portalId, newPin);
             Plugin.Log?.LogInfo($"Created portal pin. ID: {portalId}, Name: {pinName}");
+        }
+
+        internal static void RemovePortalPin(TeleportWorld portal)
+        {
+            if(portal == null || Minimap.instance == null)
+            {
+                return;
+            }
+
+            var nview = portal.GetComponent<ZNetView>();
+
+            if(nview == null || !nview.IsValid())
+            {
+                return;
+            }
+
+            var zdo = nview.GetZDO();
+
+            if(zdo == null || zdo.m_uid == ZDOID.None)
+            {
+                return;
+            }
+
+            ZDOID portalId = zdo.m_uid;
+            Vector3 portalPosition = portal.gameObject.transform.position;
+            string pinName = GetPortalPinName(portal);
+
+            Minimap.PinData pin = null;
+
+            if(PortalPins.TryGetValue(portalId, out Minimap.PinData trackedPin))
+            {
+                pin = trackedPin;
+            }
+            else
+            {
+                pin = FindExistingPortalPin(pinName, portalPosition);
+            }
+
+            if(pin == null)
+            {
+                return;
+            }
+
+            RemovePinMethod?.Invoke(Minimap.instance, new object[] { pin });
+            PortalPins.Remove(portalId);
+
+            Plugin.Log?.LogInfo($"Removed portal pin. ID: {portalId}, Name: {pinName}");
         }
 
         private static void UpdatePortalPin(Minimap.PinData pin, Vector3 position, string name)
@@ -99,6 +151,11 @@ namespace HexAutoPins.Managers
 
         private static Minimap.PinData FindExistingPortalPin(string pinName, Vector3 position)
         {
+            if(MinimapPinsField == null)
+            {
+                return null;
+            }
+
             var pins = MinimapPinsField.GetValue(Minimap.instance) as List<Minimap.PinData>;
 
             if(pins == null)
@@ -130,7 +187,7 @@ namespace HexAutoPins.Managers
 
             if (string.IsNullOrWhiteSpace(tag))
             {
-                return "Portal";
+                return string.Empty;
             }
 
             return tag;

@@ -66,6 +66,7 @@
   <ItemGroup>
     <Compile Include="Managers\PinManager.cs" />
     <Compile Include="Patches\PatchTeleportWorld.cs" />
+    <Compile Include="Patches\PatchWearNTearDestroy.cs" />
     <Compile Include="Plugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

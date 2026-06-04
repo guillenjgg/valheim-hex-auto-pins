@@ -17,8 +17,7 @@ namespace HexAutoPins.Patches
     {
         private static void Postfix(TeleportWorld __instance, string tag)
         {
-            Plugin.Log?.LogInfo($"Portal tag changed: {tag}");
-            PinManager.SyncPortalPin(__instance);
+            Plugin.Instance?.DelayPortalSync(__instance);
         }
     }
 }
