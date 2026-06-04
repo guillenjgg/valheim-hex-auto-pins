@@ -15,6 +15,11 @@ namespace HexAutoPins.Patches
     [HarmonyPatch(typeof(TeleportWorld), nameof(TeleportWorld.RPC_SetTag))]
     internal static class PatchTeleportWorldRpcSetTag
     {
+        private static void Prefix(TeleportWorld __instance, string tag)
+        {
+            PinManager.MarkPortalAndPairDisconnected(__instance);
+        }
+
         private static void Postfix(TeleportWorld __instance, string tag)
         {
             Plugin.Instance?.DelayPortalSync(__instance);

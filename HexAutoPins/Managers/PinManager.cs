@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
@@ -20,6 +21,11 @@ namespace HexAutoPins.Managers
             null,
             new[] { typeof(Minimap.PinData) },
             null
+        );
+
+        private static readonly MethodInfo HaveTargetMethod = typeof(TeleportWorld).GetMethod(
+            "HaveTarget",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
         );
 
         private static readonly Dictionary<ZDOID, Minimap.PinData> PortalPins =
@@ -56,6 +62,16 @@ namespace HexAutoPins.Managers
             ZDOID portalId = zdo.m_uid;
             Vector3 portalPosition = portalObject.transform.position;
             string pinName = GetPortalPinName(portal);
+            bool isConnected = false;
+            
+            if(HaveTargetMethod != null)
+            {
+                isConnected = (bool)HaveTargetMethod.Invoke(portal, null);
+            }
+
+            Plugin.Log?.LogInfo(
+                $"Portal sync. Name: {pinName}, Position: {portalPosition}, Connected: {isConnected}, ID: {portalId}"
+            );
 
             if (PortalPins.TryGetValue(portalId, out Minimap.PinData existingPin))
             {
@@ -137,6 +153,62 @@ namespace HexAutoPins.Managers
             Plugin.Log?.LogInfo($"Removed portal pin. ID: {portalId}, Name: {pinName}");
         }
 
+        internal static void MarkPortalAndPairDisconnected(TeleportWorld portal)
+        {
+            if (portal == null)
+            {
+                return;
+            }
+
+            ZDOID portalId = GetPortalId(portal);
+            ZDOID pairedPortalId = GetConnectedPortalId(portal);
+            
+            Plugin.Log?.LogInfo($"Portal rename prefix. Portal ID: {portalId}, Paired Portal ID: {pairedPortalId}");
+
+            MarkPortalDisconnected(portalId);
+            MarkPortalDisconnected(pairedPortalId);
+        }
+
+        private static void MarkPortalDisconnected(ZDOID portalId)
+        {
+            if(portalId == ZDOID.None)
+            {
+                return;
+            }
+
+            if(!PortalPins.TryGetValue(portalId, out Minimap.PinData pin) || pin == null)
+            {
+                Plugin.Log?.LogWarning($"No tracked pin to mark disconnected. ID: {portalId}");
+                return;
+            }
+
+            Plugin.Log?.LogInfo($"Marking portal pin as disconnected. ID: {portalId}, Name: {pin.m_name}");
+        }
+
+        private static ZDOID GetPortalId(TeleportWorld portal)
+        {
+            if(portal == null)
+            {
+                return ZDOID.None;
+            }
+
+            var nview = portal.GetComponent<ZNetView>();
+
+            if(nview == null || !nview.IsValid())
+            {
+                return ZDOID.None;
+            }
+
+            var zdo = nview.GetZDO();
+
+            if(zdo == null)
+            {
+                return ZDOID.None;
+            }
+
+            return zdo.m_uid;
+        }
+
         private static void UpdatePortalPin(Minimap.PinData pin, Vector3 position, string name)
         {
             if(pin == null)
@@ -191,6 +263,30 @@ namespace HexAutoPins.Managers
             }
 
             return tag;
+        }
+
+        private static ZDOID GetConnectedPortalId(TeleportWorld portal)
+        {
+            if (portal == null)
+            {
+                return ZDOID.None;
+            }
+
+            var nview = portal.GetComponent<ZNetView>();
+
+            if (nview == null || !nview.IsValid())
+            {
+                return ZDOID.None;
+            }
+
+            var zdo = nview.GetZDO();
+
+            if (zdo == null)
+            {
+                return ZDOID.None;
+            }
+
+            return zdo.GetConnectionZDOID(ZDOExtraData.ConnectionType.Portal);
         }
     }
 }

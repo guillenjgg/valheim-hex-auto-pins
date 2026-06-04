@@ -40,6 +40,8 @@ namespace HexAutoPins
             Log = null;
         }
 
+        // TeleportWorld Awake fires very early, so portal data may not be fully available
+        // Rather than trying to figure out Valheims internal timing, I decided to add a short delay before syncing
         internal void DelayPortalSync(TeleportWorld portal)
         {
             StartCoroutine(DelayPortalSyncCoroutine(portal));
