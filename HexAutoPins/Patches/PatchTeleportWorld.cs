@@ -3,7 +3,7 @@ using HexAutoPins.Managers;
 
 namespace HexAutoPins.Patches
 {
-    [HarmonyPatch(typeof(TeleportWorld), "UpdatePortal")]
+    [HarmonyPatch(typeof(TeleportWorld), nameof(TeleportWorld.UpdatePortal))]
     internal static class PatchTeleportWorldUpdatePortal
     {
         private static void Postfix(TeleportWorld __instance)

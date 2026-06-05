@@ -45,6 +45,7 @@
     </Reference>
     <Reference Include="Splatform">
       <HintPath>..\..\..\valheim_mod_libraries\Splatform.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -74,9 +75,12 @@
   <ItemGroup>
     <Compile Include="Managers\AssetManager.cs" />
     <Compile Include="Managers\PinManager.cs" />
+    <Compile Include="Managers\PortalManager.cs" />
+    <Compile Include="Models\PortalInfo.cs" />
     <Compile Include="Patches\PatchMinimapSetMapData.cs" />
     <Compile Include="Patches\PatchTeleportWorld.cs" />
     <Compile Include="Patches\PatchWearNTearDestroy.cs" />
+    <Compile Include="Patches\PatchZDOManLoad.cs" />
     <Compile Include="Plugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
