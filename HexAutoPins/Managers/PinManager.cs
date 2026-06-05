@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
@@ -7,8 +6,10 @@ namespace HexAutoPins.Managers
 {
     internal static class PinManager
     {
-        private const float PortalPinReconnectDistance = 5f;
+        private const float PortalPinReconnectDistance = 1f;
         private const Minimap.PinType PortalPinType = Minimap.PinType.Icon4;
+
+        private static Sprite VanillaPortalSprite;
 
         private static readonly FieldInfo MinimapPinsField = typeof(Minimap).GetField(
             "m_pins",
@@ -23,9 +24,17 @@ namespace HexAutoPins.Managers
             null
         );
 
-        private static readonly MethodInfo HaveTargetMethod = typeof(TeleportWorld).GetMethod(
-            "HaveTarget",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+        private static readonly MethodInfo CreateMapNamePinMethod = typeof(Minimap).GetMethod(
+            "CreateMapNamePin",
+            BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public,
+            null,
+            new[] { typeof(Minimap.PinData), typeof(RectTransform) },
+            null
+        );
+
+        private static readonly FieldInfo PinNameRootLargeField = typeof(Minimap).GetField(
+            "m_pinNameRootLarge",
+            BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public
         );
 
         private static readonly Dictionary<ZDOID, Minimap.PinData> PortalPins =
@@ -45,197 +54,187 @@ namespace HexAutoPins.Managers
                 return;
             }
 
-            var zdo = nview.GetZDO();
+            ZDO zdo = nview.GetZDO();
 
             if (zdo == null || zdo.m_uid == ZDOID.None)
             {
                 return;
             }
 
-            GameObject portalObject = portal.gameObject;
-
-            if (portalObject == null)
-            {
-                return;
-            }
-
             ZDOID portalId = zdo.m_uid;
-            Vector3 portalPosition = portalObject.transform.position;
-            string pinName = GetPortalPinName(portal);
-            bool isConnected = false;
-            
-            if(HaveTargetMethod != null)
+            Vector3 position = zdo.GetPosition();
+            string pinName = GetPortalPinNameFromZdo(zdo);
+            bool isConnected = IsPortalConnected(zdo);
+
+            Minimap.PinData pin;
+
+            if (!PortalPins.TryGetValue(portalId, out pin) || pin == null)
             {
-                isConnected = (bool)HaveTargetMethod.Invoke(portal, null);
+                pin = FindExistingPortalPin(pinName, position);
+
+                if (pin == null)
+                {
+                    pin = Minimap.instance.AddPin(
+                        position,
+                        PortalPinType,
+                        pinName,
+                        true,
+                        false,
+                        0L
+                    );
+                }
+
+                PortalPins[portalId] = pin;
             }
 
-            Plugin.Log?.LogInfo(
-                $"Portal sync. Name: {pinName}, Position: {portalPosition}, Connected: {isConnected}, ID: {portalId}"
-            );
-
-            if (PortalPins.TryGetValue(portalId, out Minimap.PinData existingPin))
-            {
-                UpdatePortalPin(existingPin, portalPosition, pinName);
-
-                return;
-            }
-
-            Minimap.PinData savedPin = FindExistingPortalPin(pinName, portalPosition);
-
-            if(savedPin != null)
-            {
-                PortalPins[portalId] = savedPin;
-                UpdatePortalPin(savedPin, portalPosition, pinName);
-
-                return;
-            }
-
-            // 0L matches vanilla local/unowned pins. Shared map logic assigns owner IDs when needed
-            var ownerId = 0L;
-
-            Minimap.PinData newPin = Minimap.instance.AddPin(
-                portalPosition,
-                PortalPinType,
-                pinName,
-                true,
-                false,
-                ownerId
-            );
-
-            PortalPins.Add(portalId, newPin);
-            Plugin.Log?.LogInfo($"Created portal pin. ID: {portalId}, Name: {pinName}");
+            UpdatePortalPin(pin, position, pinName, isConnected);
         }
 
         internal static void RemovePortalPin(TeleportWorld portal)
         {
-            if(portal == null || Minimap.instance == null)
+            if (portal == null || Minimap.instance == null)
             {
                 return;
             }
 
             var nview = portal.GetComponent<ZNetView>();
 
-            if(nview == null || !nview.IsValid())
+            if (nview == null || !nview.IsValid())
             {
                 return;
             }
 
-            var zdo = nview.GetZDO();
+            ZDO zdo = nview.GetZDO();
 
-            if(zdo == null || zdo.m_uid == ZDOID.None)
+            if (zdo == null || zdo.m_uid == ZDOID.None)
             {
                 return;
             }
 
             ZDOID portalId = zdo.m_uid;
-            Vector3 portalPosition = portal.gameObject.transform.position;
-            string pinName = GetPortalPinName(portal);
+            Vector3 position = zdo.GetPosition();
+            string pinName = GetPortalPinNameFromZdo(zdo);
 
-            Minimap.PinData pin = null;
+            Minimap.PinData pin;
 
-            if(PortalPins.TryGetValue(portalId, out Minimap.PinData trackedPin))
+            if (!PortalPins.TryGetValue(portalId, out pin))
             {
-                pin = trackedPin;
-            }
-            else
-            {
-                pin = FindExistingPortalPin(pinName, portalPosition);
+                pin = FindExistingPortalPin(pinName, position);
             }
 
-            if(pin == null)
+            if (pin == null)
             {
                 return;
             }
 
             RemovePinMethod?.Invoke(Minimap.instance, new object[] { pin });
             PortalPins.Remove(portalId);
-
-            Plugin.Log?.LogInfo($"Removed portal pin. ID: {portalId}, Name: {pinName}");
         }
 
-        internal static void MarkPortalAndPairDisconnected(TeleportWorld portal)
+        internal static void ClearTrackedPortalPins()
         {
-            if (portal == null)
+            PortalPins.Clear();
+        }
+
+        private static void UpdatePortalPin(
+            Minimap.PinData pin,
+            Vector3 position,
+            string name,
+            bool isConnected)
+        {
+            if (pin == null)
             {
                 return;
             }
 
-            ZDOID portalId = GetPortalId(portal);
-            ZDOID pairedPortalId = GetConnectedPortalId(portal);
-            
-            Plugin.Log?.LogInfo($"Portal rename prefix. Portal ID: {portalId}, Paired Portal ID: {pairedPortalId}");
+            CacheVanillaPortalSprite(pin);
 
-            MarkPortalDisconnected(portalId);
-            MarkPortalDisconnected(pairedPortalId);
-        }
-
-        private static void MarkPortalDisconnected(ZDOID portalId)
-        {
-            if(portalId == ZDOID.None)
-            {
-                return;
-            }
-
-            if(!PortalPins.TryGetValue(portalId, out Minimap.PinData pin) || pin == null)
-            {
-                Plugin.Log?.LogWarning($"No tracked pin to mark disconnected. ID: {portalId}");
-                return;
-            }
-
-            Plugin.Log?.LogInfo($"Marking portal pin as disconnected. ID: {portalId}, Name: {pin.m_name}");
-        }
-
-        private static ZDOID GetPortalId(TeleportWorld portal)
-        {
-            if(portal == null)
-            {
-                return ZDOID.None;
-            }
-
-            var nview = portal.GetComponent<ZNetView>();
-
-            if(nview == null || !nview.IsValid())
-            {
-                return ZDOID.None;
-            }
-
-            var zdo = nview.GetZDO();
-
-            if(zdo == null)
-            {
-                return ZDOID.None;
-            }
-
-            return zdo.m_uid;
-        }
-
-        private static void UpdatePortalPin(Minimap.PinData pin, Vector3 position, string name)
-        {
-            if(pin == null)
-            {
-                return;
-            }
+            string oldName = pin.m_name;
 
             pin.m_pos = position;
             pin.m_name = name;
             pin.m_type = PortalPinType;
+
+            if (oldName != name)
+            {
+                EnsurePortalPinName(pin);
+            }
+
+            SetPortalPinIcon(pin, isConnected);
+        }
+
+        private static void SetPortalPinIcon(Minimap.PinData pin, bool isConnected)
+        {
+            if (pin == null)
+            {
+                return;
+            }
+
+            Sprite desiredSprite = null;
+
+            if (isConnected && AssetManager.ActivePortalSprite != null)
+            {
+                desiredSprite = AssetManager.ActivePortalSprite;
+            }
+            else if (VanillaPortalSprite != null)
+            {
+                desiredSprite = VanillaPortalSprite;
+            }
+
+            if (desiredSprite == null)
+            {
+                return;
+            }
+
+            pin.m_icon = desiredSprite;
+
+            if (pin.m_iconElement != null)
+            {
+                pin.m_iconElement.sprite = desiredSprite;
+            }
+        }
+
+        private static void CacheVanillaPortalSprite(Minimap.PinData pin)
+        {
+            if (VanillaPortalSprite != null || pin == null || pin.m_icon == null)
+            {
+                return;
+            }
+
+            if (pin.m_icon == AssetManager.ActivePortalSprite)
+            {
+                return;
+            }
+
+            VanillaPortalSprite = pin.m_icon;
+        }
+
+        private static bool IsPortalConnected(ZDO zdo)
+        {
+            if (zdo == null)
+            {
+                return false;
+            }
+
+            return zdo.GetConnectionZDOID(ZDOExtraData.ConnectionType.Portal) != ZDOID.None;
         }
 
         private static Minimap.PinData FindExistingPortalPin(string pinName, Vector3 position)
         {
-            if(MinimapPinsField == null)
+            if (MinimapPinsField == null || Minimap.instance == null)
             {
                 return null;
             }
 
-            var pins = MinimapPinsField.GetValue(Minimap.instance) as List<Minimap.PinData>;
+            List<Minimap.PinData> pins =
+                MinimapPinsField.GetValue(Minimap.instance) as List<Minimap.PinData>;
 
-            if(pins == null)
+            if (pins == null)
             {
                 return null;
             }
 
-            foreach (var pin in pins)
+            foreach (Minimap.PinData pin in pins)
             {
                 if (!pin.m_save || pin.m_type != PortalPinType || pin.m_name != pinName)
                 {
@@ -253,9 +252,14 @@ namespace HexAutoPins.Managers
             return null;
         }
 
-        private static string GetPortalPinName(TeleportWorld portal)
+        private static string GetPortalPinNameFromZdo(ZDO zdo)
         {
-            string tag = portal.GetText();
+            if (zdo == null)
+            {
+                return string.Empty;
+            }
+
+            string tag = zdo.GetString(ZDOVars.s_tag, string.Empty);
 
             if (string.IsNullOrWhiteSpace(tag))
             {
@@ -265,28 +269,38 @@ namespace HexAutoPins.Managers
             return tag;
         }
 
-        private static ZDOID GetConnectedPortalId(TeleportWorld portal)
+        private static void EnsurePortalPinName(Minimap.PinData pin)
         {
-            if (portal == null)
+            if (pin == null || Minimap.instance == null)
             {
-                return ZDOID.None;
+                return;
             }
 
-            var nview = portal.GetComponent<ZNetView>();
-
-            if (nview == null || !nview.IsValid())
+            if (string.IsNullOrEmpty(pin.m_name))
             {
-                return ZDOID.None;
+                return;
             }
 
-            var zdo = nview.GetZDO();
-
-            if (zdo == null)
+            if (pin.m_NamePinData == null)
             {
-                return ZDOID.None;
+                pin.m_NamePinData = new Minimap.PinNameData(pin);
             }
 
-            return zdo.GetConnectionZDOID(ZDOExtraData.ConnectionType.Portal);
+            if (pin.m_NamePinData.PinNameGameObject != null)
+            {
+                Object.Destroy(pin.m_NamePinData.PinNameGameObject);
+            }
+
+            pin.m_NamePinData = new Minimap.PinNameData(pin);
+
+            RectTransform root = PinNameRootLargeField?.GetValue(Minimap.instance) as RectTransform;
+
+            if (root == null)
+            {
+                return;
+            }
+
+            CreateMapNamePinMethod?.Invoke(Minimap.instance, new object[] { pin, root });
         }
     }
 }
