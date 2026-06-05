@@ -37,20 +37,15 @@ namespace HexAutoPins.Managers
 
             if (ZDOMan.instance == null)
             {
-                Plugin.Log.LogWarning("ZDOMan.instance is null.");
                 return;
             }
 
             var portals = ZDOMan.instance.GetPortals();
 
-            Plugin.Log.LogInfo($"Refreshing portals. Found {portals.Count} portal ZDOs.");
-
             foreach (var zdo in portals)
             {
                 RegisterPortal(zdo);
             }
-
-            Plugin.Log.LogInfo($"Portal dictionary contains {_portals.Count} portals.");
         }
 
         internal static void RemovePortal(ZDOID portalId)

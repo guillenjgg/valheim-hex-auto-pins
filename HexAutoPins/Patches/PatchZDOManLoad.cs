@@ -8,10 +8,7 @@ namespace HexAutoPins.Patches
     {
         private static void Postfix()
         {
-            Plugin.Log.LogInfo("ZDOMan.Load postfix called. Refreshing portals.");
-
             PortalManager.RefreshPortals();
-            //PinManager.SyncPortalPins();
         }
     }
 }

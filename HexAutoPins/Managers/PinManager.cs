@@ -9,8 +9,8 @@ namespace HexAutoPins.Managers
     {
         private const float PortalPinReconnectDistance = 1f;
         private const Minimap.PinType PortalPinType = Minimap.PinType.Icon4;
-
         private static Sprite VanillaPortalSprite;
+        private static bool _isReady;
 
         private static readonly FieldInfo MinimapPinsField = typeof(Minimap).GetField(
             "m_pins",
@@ -40,6 +40,8 @@ namespace HexAutoPins.Managers
 
         private static readonly Dictionary<ZDOID, Minimap.PinData> _portalPins =
             new Dictionary<ZDOID, Minimap.PinData>();
+
+        internal static bool IsReady => _isReady;
 
         internal static void SyncPortalPins()
         {
@@ -102,8 +104,6 @@ namespace HexAutoPins.Managers
 
             if(!isPortalCached)
             {
-                Plugin.Log.LogWarning($"Portal {portalId} was not found in PortalManager.");
-
                 return;
             }
 
@@ -121,8 +121,6 @@ namespace HexAutoPins.Managers
 
             RemovePinMethod?.Invoke(Minimap.instance, new object[] { pin });
             _portalPins.Remove(portalId);
-
-            Plugin.Log.LogInfo($"Removed portal pin for portal {portalId}.");
         }
 
         internal static void ClearTrackedPortalPins()
@@ -270,9 +268,7 @@ namespace HexAutoPins.Managers
             CreateMapNamePinMethod?.Invoke(Minimap.instance, new object[] { pin, root });
         }
 
-        private static bool _isReady;
-
-        internal static bool IsReady => _isReady;
+        
 
         internal static void SetReady()
         {

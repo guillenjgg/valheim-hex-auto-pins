@@ -8,6 +8,11 @@ namespace HexAutoPins.Patches
     {
         private static void Postfix(TeleportWorld __instance)
         {
+            if(__instance == null)
+            {
+                return;
+            }
+
             var nview = __instance.GetComponent<ZNetView>();
 
             if (nview == null || !nview.IsValid())
@@ -34,12 +39,7 @@ namespace HexAutoPins.Patches
     {
         private static void Postfix()
         {
-            Plugin.Log.LogInfo("RPC_SetTag fired.");
-
             PortalManager.RefreshPortals();
-
-            Plugin.Log.LogInfo($"Portal dictionary contains {PortalManager.Portals.Count} portals after refresh.");
-
             PinManager.SyncPortalPins();
         }
     }
