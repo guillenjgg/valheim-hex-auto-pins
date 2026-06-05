@@ -1,4 +1,5 @@
 ﻿using HarmonyLib;
+using HexAutoPins.Managers;
 
 namespace HexAutoPins.Patches
 {
@@ -8,7 +9,9 @@ namespace HexAutoPins.Patches
         private static void Postfix()
         {
             Plugin.Log.LogInfo("ZDOMan.Load postfix called. Refreshing portals.");
-            Managers.PortalManager.RefreshPortalsOnce();
+
+            PortalManager.RefreshPortals();
+            //PinManager.SyncPortalPins();
         }
     }
 }

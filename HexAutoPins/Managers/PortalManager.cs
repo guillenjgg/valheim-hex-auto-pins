@@ -6,7 +6,6 @@ namespace HexAutoPins.Managers
     internal static class PortalManager
     {
         private static readonly Dictionary<ZDOID, PortalInfo> _portals = new Dictionary<ZDOID, PortalInfo>();
-        private static bool HasLoadedPortals;
 
         internal static IReadOnlyDictionary<ZDOID, PortalInfo> Portals => _portals;
 
@@ -14,7 +13,7 @@ namespace HexAutoPins.Managers
         {
             if (portal == null || portal.m_uid == ZDOID.None)
             {
-                Plugin.Log.LogWarning("ZDOMan.instance is null.");
+                Plugin.Log.LogWarning("Invalid portal ZDO.");
                 return;
             }
 
@@ -30,14 +29,6 @@ namespace HexAutoPins.Managers
             };
 
             _portals[portalInfo.PortalId] = portalInfo;
-
-            Plugin.Log.LogInfo(
-                $"Registered Portal | " +
-                $"ID: {portalInfo.PortalId} | " +
-                $"Tag: '{portalInfo.Tag}' | " +
-                $"Connected: {portalInfo.IsConnected} | " +
-                $"Connected ID: {portalInfo.ConnectedPortalId}"
-            );
         }
 
         internal static void RefreshPortals()
@@ -62,16 +53,14 @@ namespace HexAutoPins.Managers
             Plugin.Log.LogInfo($"Portal dictionary contains {_portals.Count} portals.");
         }
 
-        internal static void RefreshPortalsOnce()
+        internal static void RemovePortal(ZDOID portalId)
         {
-            if (HasLoadedPortals)
+            if(portalId == ZDOID.None)
             {
                 return;
             }
 
-            RefreshPortals();
-
-            HasLoadedPortals = true;
+            _portals.Remove(portalId);
         }
     }
 }

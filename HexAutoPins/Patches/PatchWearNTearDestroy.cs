@@ -20,7 +20,22 @@ namespace HexAutoPins.Patches
                 return;
             }
 
-            PinManager.RemovePortalPin(portal);
+            var nview = portal.GetComponent<ZNetView>();
+
+            if(nview == null || !nview.IsValid())
+            {
+                return;
+            }
+
+            var zdo = nview.GetZDO();
+
+            if(zdo == null)
+            {
+                return;
+            }
+
+            PinManager.RemovePortalPin(zdo.m_uid);
+            PortalManager.RemovePortal(zdo.m_uid);
         }
     }
 }

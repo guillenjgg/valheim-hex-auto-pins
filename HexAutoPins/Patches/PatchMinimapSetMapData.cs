@@ -8,7 +8,9 @@ namespace HexAutoPins.Patches
     {
         private static void Postfix()
         {
+            PinManager.SetReady();
             PinManager.ClearTrackedPortalPins();
+            PinManager.SyncPortalPins();
         }
     }
 }

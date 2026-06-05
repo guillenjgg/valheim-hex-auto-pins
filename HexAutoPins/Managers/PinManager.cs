@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using HexAutoPins.Models;
+using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
@@ -37,89 +38,80 @@ namespace HexAutoPins.Managers
             BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public
         );
 
-        private static readonly Dictionary<ZDOID, Minimap.PinData> PortalPins =
+        private static readonly Dictionary<ZDOID, Minimap.PinData> _portalPins =
             new Dictionary<ZDOID, Minimap.PinData>();
 
-        internal static void SyncPortalPin(TeleportWorld portal)
+        internal static void SyncPortalPins()
+        {
+            foreach (var portal in PortalManager.Portals.Values)
+            {
+                if (portal == null)
+                {
+                    continue;
+                }
+
+                SyncPortalPin(portal);
+            }
+        }
+
+        internal static void SyncPortalPin(PortalInfo portal)
         {
             if (portal == null || Minimap.instance == null)
             {
                 return;
             }
 
-            var nview = portal.GetComponent<ZNetView>();
-
-            if (nview == null || !nview.IsValid())
+            if(portal.PortalId == ZDOID.None)
             {
                 return;
             }
-
-            ZDO zdo = nview.GetZDO();
-
-            if (zdo == null || zdo.m_uid == ZDOID.None)
-            {
-                return;
-            }
-
-            ZDOID portalId = zdo.m_uid;
-            Vector3 position = zdo.GetPosition();
-            string pinName = GetPortalPinNameFromZdo(zdo);
-            bool isConnected = IsPortalConnected(zdo);
 
             Minimap.PinData pin;
 
-            if (!PortalPins.TryGetValue(portalId, out pin) || pin == null)
+            if (!_portalPins.TryGetValue(portal.PortalId, out pin))
             {
-                pin = FindExistingPortalPin(pinName, position);
+                pin = FindExistingPortalPin(portal.Tag, portal.Position);
 
                 if (pin == null)
                 {
+                    // The 0L is vanillas default owner ID for player created pins
                     pin = Minimap.instance.AddPin(
-                        position,
+                        portal.Position,
                         PortalPinType,
-                        pinName,
+                        portal.Tag,
                         true,
                         false,
-                        0L
-                    );
-                }
+                        0L);
 
-                PortalPins[portalId] = pin;
+                }
+                
+                _portalPins[portal.PortalId] = pin;
             }
 
-            UpdatePortalPin(pin, position, pinName, isConnected);
+            UpdatePortalPin(pin, portal.Position, portal.Tag, portal.IsConnected);
         }
 
-        internal static void RemovePortalPin(TeleportWorld portal)
+        internal static void RemovePortalPin(ZDOID portalId)
         {
-            if (portal == null || Minimap.instance == null)
+            if(Minimap.instance == null)
             {
                 return;
             }
 
-            var nview = portal.GetComponent<ZNetView>();
+            var isPortalCached = PortalManager.Portals.TryGetValue(portalId, out PortalInfo portal);
 
-            if (nview == null || !nview.IsValid())
+            if(!isPortalCached)
             {
+                Plugin.Log.LogWarning($"Portal {portalId} was not found in PortalManager.");
+
                 return;
             }
-
-            ZDO zdo = nview.GetZDO();
-
-            if (zdo == null || zdo.m_uid == ZDOID.None)
-            {
-                return;
-            }
-
-            ZDOID portalId = zdo.m_uid;
-            Vector3 position = zdo.GetPosition();
-            string pinName = GetPortalPinNameFromZdo(zdo);
 
             Minimap.PinData pin;
 
-            if (!PortalPins.TryGetValue(portalId, out pin))
+            if (!_portalPins.TryGetValue(portalId, out pin))
             {
-                pin = FindExistingPortalPin(pinName, position);
+                pin = FindExistingPortalPin(portal.Tag, portal.Position);
             }
 
             if (pin == null)
@@ -128,12 +120,14 @@ namespace HexAutoPins.Managers
             }
 
             RemovePinMethod?.Invoke(Minimap.instance, new object[] { pin });
-            PortalPins.Remove(portalId);
+            _portalPins.Remove(portalId);
+
+            Plugin.Log.LogInfo($"Removed portal pin for portal {portalId}.");
         }
 
         internal static void ClearTrackedPortalPins()
         {
-            PortalPins.Clear();
+            _portalPins.Clear();
         }
 
         private static void UpdatePortalPin(
@@ -209,16 +203,6 @@ namespace HexAutoPins.Managers
             VanillaPortalSprite = pin.m_icon;
         }
 
-        private static bool IsPortalConnected(ZDO zdo)
-        {
-            if (zdo == null)
-            {
-                return false;
-            }
-
-            return zdo.GetConnectionZDOID(ZDOExtraData.ConnectionType.Portal) != ZDOID.None;
-        }
-
         private static Minimap.PinData FindExistingPortalPin(string pinName, Vector3 position)
         {
             if (MinimapPinsField == null || Minimap.instance == null)
@@ -250,23 +234,6 @@ namespace HexAutoPins.Managers
             }
 
             return null;
-        }
-
-        private static string GetPortalPinNameFromZdo(ZDO zdo)
-        {
-            if (zdo == null)
-            {
-                return string.Empty;
-            }
-
-            string tag = zdo.GetString(ZDOVars.s_tag, string.Empty);
-
-            if (string.IsNullOrWhiteSpace(tag))
-            {
-                return string.Empty;
-            }
-
-            return tag;
         }
 
         private static void EnsurePortalPinName(Minimap.PinData pin)
@@ -301,6 +268,15 @@ namespace HexAutoPins.Managers
             }
 
             CreateMapNamePinMethod?.Invoke(Minimap.instance, new object[] { pin, root });
+        }
+
+        private static bool _isReady;
+
+        internal static bool IsReady => _isReady;
+
+        internal static void SetReady()
+        {
+            _isReady = true;
         }
     }
 }
