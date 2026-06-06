@@ -27,8 +27,6 @@ namespace HexAutoPins.Patches
                 return;
             }
 
-            Plugin.Log.LogInfo($"Portal Awake: {zdo.m_uid}");
-
             PortalManager.RegisterPortal(zdo);
             PinManager.SyncPortalPins();
         }

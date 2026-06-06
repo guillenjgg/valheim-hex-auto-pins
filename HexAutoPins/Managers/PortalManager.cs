@@ -13,7 +13,6 @@ namespace HexAutoPins.Managers
         {
             if (portal == null || portal.m_uid == ZDOID.None)
             {
-                Plugin.Log.LogWarning("Invalid portal ZDO.");
                 return;
             }
 
